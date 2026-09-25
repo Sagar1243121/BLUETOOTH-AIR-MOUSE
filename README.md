@@ -1,125 +1,147 @@
-#include <BleMouse.h>
-#include <Wire.h>
-#include <MPU6050_tockn.h>
+# Bluetooth Air Mouse
 
-BleMouse bleMouse("ESP32 Air Mouse", "OpenAI", 100);
+A wearable-style wireless air mouse built using an **ESP32**, **MPU6050**, and physical buttons. The device detects hand/wrist rotation and converts motion into mouse movement over Bluetooth HID.
 
-MPU6050 mpu6050(Wire);
+## Project Overview
 
-// Buttons
-const int leftButton = 18;
-const int rightButton = 19;
+The Bluetooth Air Mouse provides mouse control without a conventional desktop mouse. The ESP32 reads rotational motion from the MPU6050 gyroscope, processes the signal using sensitivity reduction, smoothing and a dead-zone filter, and sends mouse HID commands through Bluetooth.
 
-// Smooth variables
-float smoothX = 0;
-float smoothY = 0;
+### Main Features
 
-void setup() {
+- Wireless Bluetooth HID mouse
+- Gyroscope-based cursor movement
+- Left click
+- Right click
+- Long press left button → scroll up
+- Long press right button → scroll down
+- Rechargeable battery operation
+- Compact custom enclosure
+- ESP32-based embedded system
 
-  Serial.begin(115200);
+## Hardware
 
-  // Buttons
-  pinMode(leftButton, INPUT_PULLUP);
-  pinMode(rightButton, INPUT_PULLUP);
+- ESP32 Dev Module
+- MPU6050
+- 2 × push buttons
+- 2000 mAh 3.7 V Li-ion battery
+- TP4056 charging/protection module
+- 5 V boost converter if required by the selected ESP32 power input
+- Wires and enclosure
 
-  // I2C
-  Wire.begin(21, 22);
+## Connections
 
-  // MPU6050
-  mpu6050.begin();
+### MPU6050 → ESP32
 
-  Serial.println("Keep MPU6050 still...");
-  delay(3000);
+| MPU6050 | ESP32 |
+|---|---|
+| VCC | 3.3V |
+| GND | GND |
+| SDA | GPIO 21 |
+| SCL | GPIO 22 |
 
-  mpu6050.calcGyroOffsets(true);
+### Buttons
 
-  Serial.println("MPU6050 Ready");
+| Function | ESP32 |
+|---|---|
+| Left button | GPIO 18 |
+| Right button | GPIO 19 |
 
-  // BLE Mouse
-  bleMouse.begin();
+The firmware uses `INPUT_PULLUP`, so each push button is connected between its GPIO pin and GND.
 
-  Serial.println("BLE Mouse Started");
-}
+### Power
 
-void loop() {
+Use a suitable protected Li-ion charging/power arrangement. Do not connect a raw Li-ion cell directly to a 3.3 V GPIO pin. If using a boost converter, set its output to the voltage required by the specific ESP32 board's power-input pin before connecting it.
 
-  mpu6050.update();
+## Software
 
-  if (bleMouse.isConnected()) {
+- Arduino IDE
+- ESP32 board package
+- `BleMouse` library
+- `MPU6050_tockn` library
 
-    // Read gyro
-    float gx = -mpu6050.getGyroX();
-    float gy = -mpu6050.getGyroY();
+## Firmware
 
-    // Reduce sensitivity
-    gx = gx / 12.0;
-    gy = gy / 12.0;
+Open:
 
-    // Smoothing filter
-    smoothX = (smoothX * 0.85) + (gx * 0.35);
-    smoothY = (smoothY * 0.85) + (gy * 0.35);
+`firmware/bluetooth_air_mouse.ino`
 
-    // Convert to int
-    int mouseX = (int)smoothX;
-    int mouseY = (int)smoothY;
+Select the correct ESP32 board and COM port, then upload.
 
-    // Dead zone
-    if (abs(mouseX) < 2) mouseX = 0;
-    if (abs(mouseY) < 2) mouseY = 0;
+## How It Works
 
-    // Move mouse
-    bleMouse.move(mouseX, mouseY);
+```text
+Hand/Wrist Rotation
+        ↓
+     MPU6050
+        ↓
+   ESP32 I2C
+        ↓
+Gyroscope readings
+        ↓
+Sensitivity scaling
+        ↓
+Smoothing filter
+        ↓
+     Dead zone
+        ↓
+ Bluetooth HID
+        ↓
+Computer / compatible device
+```
 
-    // LEFT BUTTON
-    if (digitalRead(leftButton) == LOW) {
+## Motion Processing
 
-      unsigned long pressTime = millis();
+The firmware reads:
 
-      while (digitalRead(leftButton) == LOW) {
+- Gyro X → horizontal cursor movement
+- Gyro Y → vertical cursor movement
 
-        // LONG PRESS → SCROLL UP
-        if (millis() - pressTime > 500) {
+The raw values are scaled down, smoothed and converted to integer mouse movement values.
 
-          bleMouse.move(0, 0, 1);
+The dead zone reduces very small movements that could otherwise cause cursor drift.
 
-          delay(80);
-        }
-      }
+## Known Limitation
 
-      // SHORT PRESS → LEFT CLICK
-      if (millis() - pressTime < 500) {
+Gyroscope-only tracking can experience drift because the gyroscope measures angular velocity and small sensor bias errors accumulate over time.
 
-        bleMouse.click(MOUSE_LEFT);
+A future version can improve this using:
 
-        delay(200);
-      }
-    }
+- Accelerometer + gyroscope sensor fusion
+- Complementary filter
+- Kalman filter
+- Automatic zero calibration
+- Better power regulation
+- Custom PCB
+- 3D-printed enclosure
+- Configuration application
 
-    // RIGHT BUTTON
-    if (digitalRead(rightButton) == LOW) {
+## Future App Configuration
 
-      unsigned long pressTime = millis();
+A future version can expose settings such as:
 
-      while (digitalRead(rightButton) == LOW) {
+- Cursor sensitivity
+- Smoothing
+- Dead-zone size
+- Scroll speed
+- Button functions
+- Recalibration
 
-        // LONG PRESS → SCROLL DOWN
-        if (millis() - pressTime > 500) {
+The configuration protocol should be designed separately from the HID mouse channel, for example using a BLE GATT configuration service.
 
-          bleMouse.move(0, 0, -1);
+## Project Applications
 
-          delay(80);
-        }
-      }
+- Presentation control
+- Accessibility
+- Hands-free computer interaction
+- Gaming experiments
+- Human-computer interaction research
+- Wearable interface prototypes
 
-      // SHORT PRESS → RIGHT CLICK
-      if (millis() - pressTime < 500) {
+## Author
 
-        bleMouse.click(MOUSE_RIGHT);
+**Sagar**  
+AIML Student
 
-        delay(200);
-      }
-    }
-  }
+## License
 
-  delay(10);
-}
+MIT License.
